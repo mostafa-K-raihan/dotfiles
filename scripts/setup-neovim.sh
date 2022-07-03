@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+is_darwin() {
+  [[ $OSTYPE = darwin* ]]
+}
+
+is_linux() {
+  [[ $OSTYPE = linux* ]]
+}
+
+get_latest_reposiotry() {
+  local repo_uri="${1}"
+  local repo_dir="${2}"
+
+  echo "Repository URI: ${repo_uri}"
+  if [[ ! -d "${repo_dir}" ]]; then
+    echo "Cloning repository..."
+    mkdir -p "$(dirname "${repo_dir}")"
+    git clone --quiet --recursive --depth 10 "${repo_uri}" "${repo_dir}"
+    pushd "${repo_dir}" >/dev/null
+  else
+    echo "Pulling latest commits..."
+    pushd "${repo_dir}" >/dev/null
+    git pull
+    git submodule update --init
+  fi
+
+  popd >/dev/null
+}
+
+setup_apt_packages() {
+  local apt_bin="apt"
+  if type apt-fast >/dev/null 2>&1; then
+    apt_bin="apt-fast"
+  fi
+  echo "Installing packages: $*"
+  sudo $apt_bin install -qq --yes "$@"
+}
+
+setup_brew_packages() {
+  echo "Installing packages: $*"
+  printf 'brew "%s"\n' $* |  brew bundle --no-lock --file=-
+}
+
+link_binary() {
+  local binary_name="${1}"
+  echo "Setting up binary: ${binary_name}"
+  sudo ln -nsf "${HOME}/.local/bin/${binary_name}" "/usr/local/bin/${binary_name}"
+}
+
+setup_neovim_brew() {
+  echo "Installing LuaJIT..."
+  brew reinstall luajit
+
+  echo "Installing NeoVim..."
+  brew reinstall neovim
+}
+
+setup_neovim_appimage() {
+  cd /tmp
+
+  echo "Installing NeoVim..."
+  local -r _neovim_version=${1:-"nightly"}
+  local -r _neovim_url="https://github.com/neovim/neovim/releases/download/${_neovim_version}/nvim.appimage"
+  local -r _neovim_dir="/opt/neovim"
+
+  echo "Downloading AppImage..."
+  wget --continue --quiet --show-progress --timestamping "${_neovim_url}" -O nvim.appimage
+  chmod u+x nvim.appimage
+
+  echo "Installation Directory: ${_neovim_dir}"
+  sudo mkdir -p ${_neovim_dir}
+  if [[ -f "${_neovim_dir}/nvim.appimage" ]]; then
+    sudo mv ${_neovim_dir}/nvim.appimage ${_neovim_dir}/nvim.appimage.old
+  fi
+  sudo mv nvim.appimage ${_neovim_dir}/nvim.appimage
+
+  echo "Setting up NeoVim binary: nvim"
+  sudo ln -nsf ${_neovim_dir}/nvim.appimage /usr/local/bin/nvim
+}
+
+setup_neovim_source() {
+  get_latest_reposiotry "https://github.com/neovim/neovim" "${HOME}/Dev/github/neovim/neovim"
+  pushd "${HOME}/Dev/github/neovim/neovim" >/dev/null
+
+  echo "Installing dependencies..."
+
+  if is_darwin; then
+    setup_brew_packages ninja libtool automake cmake pkg-config gettext curl
+  fi
+
+  if is_linux; then
+    setup_apt_packages ninja-build gettext libtool libtool-bin autoconf automake cmake g++ pkg-config unzip curl
+  fi
+
+  echo "Running build..."
+  make distclean
+  make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX="${HOME}/.local" cmake
+
+  echo "Installing..."
+  make install
+
+  link_binary "nvim"
+}
+
+if [[ $# -gt 0 ]]; then
+  case "${1}" in
+    --appimage)
+      setup_neovim_appimage "${2:-nightly}"
+      ;;
+    --brew) setup_neovim_brew;;
+    --source) setup_neovim_source;;
+    *) exit 1;;
+  esac
+else
+  setup_neovim_source
+fi
+
+echo "Creating binary link: vim -> nvim"
+ln -nsf "$(command -v nvim)" "${HOME}/.local/bin/vim"
+
+if type setup-neovim-providers >/dev/null 2>&1; then
+  setup-neovim-providers
+fi
+
+echo "Done!"
