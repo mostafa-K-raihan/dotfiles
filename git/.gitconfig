@@ -1,0 +1,29 @@
+[user]
+	email = mostafa.raihan@newscred.com
+	name = raihan
+[merge]
+	conflictstyle = diff3
+[alias]
+	rb = rebase
+	br = branch
+	st = status
+	ci = commit
+	co = checkout
+	cp = cherry-pick
+	lg = log --graph --format='%C(yellow)%h%Creset -%C(auto)%d%Creset %s %Cgreen(%cr) %C(blue)<%an>%Creset'
+	spp = !git stash && git pull && git stash pop
+	ps = push -f 
+	remotes = remote -v
+        tags = tag -l --sort="v:refname"
+        unstage = reset HEAD --
+[color]
+	ui = auto
+[push]
+	default = simple
+[pull]
+	rebase = true
+[core]
+	editor = vim
+	filemode = false
+[safe]
+	directory = /code
