@@ -70,6 +70,14 @@ setup_neovim_appimage() {
   wget --continue --quiet --show-progress --timestamping "${_neovim_url}" -O nvim.appimage
   chmod u+x nvim.appimage
 
+  echo "Installing libfuse2..."
+  sudo apt install libfuse2 -y
+  
+  echo "Creating directory"
+  mkdir -p "~/.cache/vim"
+  mkdir -p "~/.vim"
+  mkdir -p "~/.local/share/vim"
+
   echo "Installation Directory: ${_neovim_dir}"
   sudo mkdir -p ${_neovim_dir}
   if [[ -f "${_neovim_dir}/nvim.appimage" ]]; then
